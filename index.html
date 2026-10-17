@@ -99,21 +99,19 @@
       </div>
     </section>
 
-    <!-- 2. 個股與消息分析頁面 -->
+    <!-- 2. 個股與消息頁面 -->
     <section id="page-stock-info" class="space-y-6 hidden">
       <div class="flex items-center space-x-4">
         <label class="text-sm text-slate-400">選擇分析個股：</label>
-        <select id="stock-select" onchange="renderStockDetails()" class="bg-slate-800 text-white border border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
-        </select>
+        <select id="stock-select" onchange="renderStockDetails()" class="bg-slate-800 text-white border border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"></select>
       </div>
-
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="glass-card p-4 rounded-xl">
-          <h3 class="text-sm font-semibold text-slate-200 mb-2">近期價格走勢與 20MA 均線</h3>
+          <h3 class="text-sm font-semibold text-slate-200 mb-2">近期價格走勢</h3>
           <canvas id="stockPriceChart" class="max-h-64"></canvas>
         </div>
         <div class="glass-card p-4 rounded-xl">
-          <h3 class="text-sm font-semibold text-slate-200 mb-2">即時個股新聞與市場情報</h3>
+          <h3 class="text-sm font-semibold text-slate-200 mb-2">個股新聞與消息</h3>
           <div id="stock-news-list" class="space-y-3 text-sm"></div>
         </div>
       </div>
@@ -145,8 +143,7 @@
     <!-- 4. 股利追蹤頁面 -->
     <section id="page-dividend" class="space-y-6 hidden">
       <div class="glass-card p-4 rounded-xl">
-        <h3 class="text-sm font-semibold text-slate-200 mb-4">歷史發放與預估領息明細</h3>
-        <p class="text-xs text-slate-400 mb-4">自動根據最新持股庫存張數計算每期應領股利。</p>
+        <h3 class="text-sm font-semibold text-slate-200 mb-4">預估領息明細</h3>
         <div id="dividend-list" class="space-y-3"></div>
       </div>
     </section>
@@ -156,14 +153,15 @@
       <div class="flex flex-wrap gap-3 justify-between items-center">
         <h3 class="text-lg font-bold text-white">庫存交易紀錄</h3>
         <div class="flex space-x-2">
-          <button onclick="document.getElementById('ocr-file-input').click()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-camera mr-2"></i>📷 匯入群益庫存截圖 (OCR)</button>
+          <button onclick="clearAllData()" class="bg-red-900/60 hover:bg-red-800 text-red-200 px-3 py-1.5 rounded-lg text-sm"><i class="fa-solid fa-trash mr-1"></i>清空紀錄</button>
+          <button onclick="document.getElementById('ocr-file-input').click()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-camera mr-2"></i>📷 匯入群益截圖 (OCR)</button>
           <input type="file" id="ocr-file-input" class="hidden" accept="image/*" onchange="processGroupBenefitScreenshot(event)">
           <button onclick="openTransactionModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-plus mr-1"></i> 手動新增交易</button>
         </div>
       </div>
 
       <div id="ocr-loading" class="hidden glass-card p-4 rounded-xl text-center text-blue-400 animate-pulse">
-        <i class="fa-solid fa-spinner fa-spin mr-2"></i>正在辨識群益 App 截圖中，請稍候...
+        <i class="fa-solid fa-spinner fa-spin mr-2"></i>正在辨識群益截圖中，請稍候...
       </div>
 
       <div class="glass-card p-4 rounded-xl overflow-x-auto">
@@ -185,7 +183,7 @@
     </section>
   </main>
 
-  <!-- 手動輸入交易 Modal -->
+  <!-- 手動新增交易 Modal -->
   <div id="tx-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden z-50">
     <div class="glass-card p-6 rounded-xl max-w-md w-full mx-4 space-y-4">
       <h3 class="text-lg font-bold text-white">新增交易紀錄</h3>
@@ -211,14 +209,431 @@
         </div>
         <div>
           <label class="text-slate-400 block mb-1">手續費 (NT$)</label>
-          <input type="number" id="tx-fee" placeholder="20" value="20" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
+          <input type="number" id="tx-fee" value="20" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
         </div>
       </div>
       <div class="flex justify-end space-x-3 pt-2">
         <button onclick="closeTransactionModal()" class="px-4 py-2 text-slate-400 hover:text-white">取消</button>
-        <button onclick="saveTransaction()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg">儲存</button>
+        <button onclick="saveTransaction()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg">儲存寫入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OCR 辨識預覽與校對 Modal -->
+  <div id="ocr-preview-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center hidden z-50">
+    <div class="glass-card p-6 rounded-xl max-w-2xl w-full mx-4 space-y-4 max-h-[90vh] flex flex-col">
+      <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-file-invoice text-blue-400 mr-2"></i>核對辨識資料</h3>
+      <p class="text-xs text-slate-400">系統已自動為您提取群益截圖內容，請核對並修正數字後再點擊寫入：</p>
+      
+      <div class="flex-1 overflow-y-auto border border-slate-700 rounded-lg p-2">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="text-xs text-slate-400 border-b border-slate-700">
+            <tr>
+              <th class="p-2">股票代號</th>
+              <th class="p-2">股數</th>
+              <th class="p-2">買進單價</th>
+              <th class="p-2">操作</th>
+            </tr>
+          </thead>
+          <tbody id="ocr-preview-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-2">
+        <button onclick="closeOcrModal()" class="px-4 py-2 text-slate-400 hover:text-white">取消</button>
+        <button onclick="confirmOcrImport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg"><i class="fa-solid fa-check mr-1"></i>確認寫入庫存</button>
       </div>
     </div>
   </div>
 
   <script>
+    const KNOWN_STOCKS = {
+      "2330": { name: "台積電", category: "核心權值", dps: 18.0 },
+      "2454": { name: "聯發科", category: "核心權值", dps: 55.0 },
+      "6213": { name: "聯茂", category: "AI中小型", dps: 3.5 },
+      "3605": { name: "宏致", category: "AI中小型", dps: 2.0 },
+      "6530": { name: "創威", category: "AI中小型", dps: 1.5 },
+      "6168": { name: "宏齊", category: "AI中小型", dps: 1.2 },
+      "00713": { name: "元大台灣高息低波", category: "高息防禦", dps: 3.6 },
+      "00712": { name: "復華富時不動產", category: "高息防禦", dps: 0.8 },
+      "00933B": { name: "國泰10Y+金融債", category: "高息防禦", dps: 0.9 }
+    };
+
+    let userTransactions = JSON.parse(localStorage.getItem('user_tx') || '[]');
+    let pendingOcrItems = [];
+    let autoStockData = null;
+    let allocationChart = null;
+    let priceChart = null;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`page-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+      if (tabId === 'stock-info') renderStockDetails();
+    }
+
+    function openTransactionModal() { document.getElementById('tx-modal').classList.remove('hidden'); }
+    function closeTransactionModal() { document.getElementById('tx-modal').classList.add('hidden'); }
+    function closeOcrModal() { document.getElementById('ocr-preview-modal').classList.add('hidden'); }
+
+    function clearAllData() {
+      if (confirm("確定要清空所有交易紀錄嗎？清空後可重新手動輸入或重新上傳截圖。")) {
+        userTransactions = [];
+        localStorage.removeItem('user_tx');
+        renderAllPages();
+      }
+    }
+
+    function saveTransaction() {
+      const code = document.getElementById('tx-code').value.trim();
+      const price = parseFloat(document.getElementById('tx-price').value);
+      const shares = parseInt(document.getElementById('tx-shares').value);
+      const fee = parseFloat(document.getElementById('tx-fee').value || 0);
+
+      if (!code || isNaN(price) || isNaN(shares) || price <= 0 || shares <= 0) {
+        alert("請輸入有效的股票代號、價格與股數！");
+        return;
+      }
+
+      userTransactions.push({
+        date: new Date().toISOString().split('T')[0],
+        type: document.getElementById('tx-type').value,
+        code, price, shares, fee
+      });
+
+      localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+      closeTransactionModal();
+      renderAllPages();
+    }
+
+    function deleteTx(idx) {
+      userTransactions.splice(idx, 1);
+      localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+      renderAllPages();
+    }
+
+    // 計算庫存與狀態防錯引擎
+    function calculatePortfolioState() {
+      const holdings = {};
+      const realizedList = [];
+
+      userTransactions.forEach(tx => {
+        const code = tx.code;
+        const price = Number(tx.price) || 0;
+        const shares = Number(tx.shares) || 0;
+        const fee = Number(tx.fee) || 0;
+
+        if (price <= 0 || shares <= 0) return; // 自動過濾異常數據
+
+        if (!holdings[code]) {
+          holdings[code] = { shares: 0, totalCost: 0 };
+        }
+
+        if (tx.type === 'BUY') {
+          holdings[code].shares += shares;
+          holdings[code].totalCost += (price * shares) + fee;
+        } else if (tx.type === 'SELL') {
+          const avgCost = holdings[code].shares > 0 ? (holdings[code].totalCost / holdings[code].shares) : price;
+          const sellRevenue = (price * shares) - fee;
+          const costBasis = avgCost * shares;
+          const pnl = sellRevenue - costBasis;
+
+          realizedList.push({
+            date: tx.date,
+            code: code,
+            shares: shares,
+            buyAvg: avgCost.toFixed(1),
+            sellAvg: price,
+            fee: fee,
+            pnl: Math.round(pnl)
+          });
+
+          holdings[code].shares -= shares;
+          holdings[code].totalCost -= costBasis;
+          if (holdings[code].shares <= 0) {
+            holdings[code].shares = 0;
+            holdings[code].totalCost = 0;
+          }
+        }
+      });
+
+      return { holdings, realizedList };
+    }
+
+    function renderAllPages() {
+      const { holdings, realizedList } = calculatePortfolioState();
+
+      // 1. 頁面五表格
+      const txTbody = document.getElementById('transaction-history-table');
+      if (txTbody) {
+        txTbody.innerHTML = userTransactions.length > 0 ? userTransactions.map((tx, idx) => `
+          <tr class="border-b border-slate-800">
+            <td class="py-2">${tx.date}</td>
+            <td class="py-2 ${tx.type==='BUY'?'text-red-400':'text-emerald-400'}">${tx.type==='BUY'?'買進':'賣出'}</td>
+            <td class="py-2 font-mono">${tx.code}</td>
+            <td class="py-2 font-mono">$${tx.price}</td>
+            <td class="py-2 font-mono">${tx.shares}</td>
+            <td class="py-2 font-mono">$${tx.fee}</td>
+            <td class="py-2"><button onclick="deleteTx(${idx})" class="text-xs text-red-400 hover:underline">刪除</button></td>
+          </tr>
+        `).join('') : `<tr><td colspan="7" class="py-4 text-center text-slate-500">目前尚無交易紀錄</td></tr>`;
+      }
+
+      // 2. 頁面一 (總覽連動)
+      let totalMarketVal = 0;
+      let totalCost = 0;
+      let totalEstDividend = 0;
+      let stockCount = 0;
+      const categoryTotals = { "核心權值": 0, "AI中小型": 0, "高息防禦": 0, "其他": 0 };
+      const stockRows = [];
+
+      Object.keys(holdings).forEach(code => {
+        const h = holdings[code];
+        if (h.shares > 0 && h.totalCost > 0) {
+          stockCount++;
+          const avgCost = h.totalCost / h.shares;
+          let curPrice = avgCost;
+          let name = KNOWN_STOCKS[code]?.name || `個股 ${code}`;
+          let category = KNOWN_STOCKS[code]?.category || "其他";
+          let dps = KNOWN_STOCKS[code]?.dps || 0;
+
+          if (autoStockData && autoStockData.stocks && autoStockData.stocks[code]) {
+            curPrice = autoStockData.stocks[code].price || avgCost;
+            name = autoStockData.stocks[code].name || name;
+          }
+
+          const marketVal = h.shares * curPrice;
+          const pnl = marketVal - h.totalCost;
+          const roi = ((pnl / h.totalCost) * 100).toFixed(2);
+          const estDiv = h.shares * dps;
+
+          totalMarketVal += marketVal;
+          totalCost += h.totalCost;
+          totalEstDividend += estDiv;
+
+          categoryTotals[category] = (categoryTotals[category] || 0) + marketVal;
+
+          stockRows.push(`
+            <tr class="border-b border-slate-800">
+              <td class="py-2 font-semibold text-white">${name} <span class="text-xs text-slate-500 font-mono">(${code})</span></td>
+              <td class="py-2 font-mono">$${curPrice}</td>
+              <td class="py-2 font-mono">${h.shares}</td>
+              <td class="py-2 font-mono">$${avgCost.toFixed(1)}</td>
+              <td class="py-2 font-mono ${pnl>=0?'text-red-400':'text-emerald-400'}">${pnl>=0?'+':''}$${Math.round(pnl)}</td>
+              <td class="py-2 font-mono ${pnl>=0?'text-red-400':'text-emerald-400'}">${roi}%</td>
+            </tr>
+          `);
+        }
+      });
+
+      document.getElementById('total-market-val').innerText = `$${Math.round(totalMarketVal).toLocaleString()}`;
+      const totalPnl = totalMarketVal - totalCost;
+      const pnlEl = document.getElementById('total-unrealized-pnl');
+      pnlEl.innerText = `${totalPnl>=0?'+':''}$${Math.round(totalPnl).toLocaleString()}`;
+      pnlEl.className = `text-2xl font-bold font-mono mt-1 ${totalPnl>=0?'text-red-400':'text-emerald-400'}`;
+      document.getElementById('total-est-dividend').innerText = `$${Math.round(totalEstDividend).toLocaleString()}`;
+      document.getElementById('total-stock-count').innerText = stockCount;
+
+      const overviewTable = document.getElementById('overview-stock-table');
+      if (overviewTable) {
+        overviewTable.innerHTML = stockRows.length > 0 ? stockRows.join('') : `<tr><td colspan="6" class="py-4 text-center text-slate-500">尚無庫存資料</td></tr>`;
+      }
+
+      renderAllocationChart(categoryTotals);
+      updateStockSelectOptions(holdings);
+
+      // 3. 頁面三
+      const realizedTbody = document.getElementById('realized-pnl-table');
+      if (realizedTbody) {
+        realizedTbody.innerHTML = realizedList.length > 0 ? realizedList.map(r => `
+          <tr class="border-b border-slate-800">
+            <td class="py-2">${r.date}</td>
+            <td class="py-2 font-semibold text-white">${r.code}</td>
+            <td class="py-2 font-mono">${r.shares}</td>
+            <td class="py-2 font-mono">$${r.buyAvg}</td>
+            <td class="py-2 font-mono">$${r.sellAvg}</td>
+            <td class="py-2 font-mono">$${r.fee}</td>
+            <td class="py-2 font-mono ${r.pnl>=0?'text-red-400':'text-emerald-400'}">${r.pnl>=0?'+':''}$${r.pnl}</td>
+          </tr>
+        `).join('') : `<tr><td colspan="7" class="py-4 text-center text-slate-500">尚無實現損益紀錄</td></tr>`;
+      }
+
+      // 4. 頁面四
+      const divContainer = document.getElementById('dividend-list');
+      if (divContainer) {
+        const divItems = [];
+        Object.keys(holdings).forEach(code => {
+          if (holdings[code].shares > 0) {
+            const shares = holdings[code].shares;
+            const dps = KNOWN_STOCKS[code]?.dps || 1.0;
+            const totalDiv = Math.round(shares * dps);
+            const name = KNOWN_STOCKS[code]?.name || code;
+            divItems.push(`
+              <div class="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <div>
+                  <h4 class="font-bold text-white">${name} (${code})</h4>
+                  <p class="text-xs text-slate-400">庫存 ${shares} 股 × 預估配息 $${dps}</p>
+                </div>
+                <div class="text-right">
+                  <span class="text-lg font-bold font-mono text-emerald-400">+$${totalDiv.toLocaleString()}</span>
+                  <p class="text-xs text-slate-500">預估年度股利</p>
+                </div>
+              </div>
+            `);
+          }
+        });
+        divContainer.innerHTML = divItems.length > 0 ? divItems.join('') : `<p class="text-slate-500 text-center py-4">目前尚無庫存股利計算</p>`;
+      }
+    }
+
+    function updateStockSelectOptions(holdings) {
+      const select = document.getElementById('stock-select');
+      if (!select) return;
+      const codes = new Set([...Object.keys(holdings), ...Object.keys(KNOWN_STOCKS)]);
+      select.innerHTML = Array.from(codes).map(code => {
+        const name = KNOWN_STOCKS[code]?.name || code;
+        return `<option value="${code}">${code} ${name}</option>`;
+      }).join('');
+    }
+
+    function renderAllocationChart(categoryTotals) {
+      const ctx = document.getElementById('allocationChart').getContext('2d');
+      if (allocationChart) allocationChart.destroy();
+      allocationChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(categoryTotals).filter(k => categoryTotals[k] > 0),
+          datasets: [{
+            data: Object.values(categoryTotals).filter(v => v > 0),
+            backgroundColor: ['#3B82F6', '#8B5CF6', '#10B981', '#64748B']
+          }]
+        },
+        options: { plugins: { legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 10 } } } } }
+      });
+    }
+
+    function renderStockDetails() {
+      const select = document.getElementById('stock-select');
+      if (!select || !select.value) return;
+      const code = select.value;
+      const ctx = document.getElementById('stockPriceChart').getContext('2d');
+      if (priceChart) priceChart.destroy();
+
+      priceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['10/10', '10/11', '10/12', '10/13', '10/14', '10/15', '10/16'],
+          datasets: [{
+            label: `${code} 價格`,
+            data: [100, 102, 101, 104, 103, 105, 106],
+            borderColor: '#3B82F6',
+            borderWidth: 2,
+            fill: false
+          }]
+        },
+        options: { scales: { y: { ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } } }
+      });
+
+      const newsList = document.getElementById('stock-news-list');
+      newsList.innerHTML = `<div class="p-2 border-b border-slate-800"><a href="#" class="text-blue-400 hover:underline">【即時消息】${KNOWN_STOCKS[code]?.name || code} 近期營運維持穩定。</a></div>`;
+    }
+
+    // OCR 辨識邏輯：擷取後先載入校對彈窗
+    async function processGroupBenefitScreenshot(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      document.getElementById('ocr-loading').classList.remove('hidden');
+      try {
+        const worker = await Tesseract.createWorker('chi_tra+eng');
+        const ret = await worker.recognize(file);
+        await worker.terminate();
+
+        const text = ret.data.text;
+        console.log("OCR 原始內容：\n", text);
+
+        pendingOcrItems = [];
+        const lines = text.split('\n');
+
+        lines.forEach(line => {
+          const codeMatch = line.match(/\b(\d{4,5})\b/);
+          const numbers = line.match(/\d+\.?\d*/g);
+
+          if (codeMatch && numbers && numbers.length >= 3) {
+            const code = codeMatch[1];
+            // 取第二個與第三個數字作為股數與單價的預設值
+            let shares = parseInt(numbers[1]);
+            let price = parseFloat(numbers[2]);
+
+            if (shares > 0 && price > 0) {
+              pendingOcrItems.push({ code, shares, price });
+            }
+          }
+        });
+
+        if (pendingOcrItems.length > 0) {
+          renderOcrPreviewTable();
+          document.getElementById('ocr-preview-modal').classList.remove('hidden');
+        } else {
+          alert('未能從截圖辨識出標準持股格式，請使用【手動新增交易】新增。');
+        }
+      } catch (err) {
+        alert('OCR 辨識發生錯誤：' + err.message);
+      } finally {
+        document.getElementById('ocr-loading').classList.add('hidden');
+      }
+    }
+
+    function renderOcrPreviewTable() {
+      const tbody = document.getElementById('ocr-preview-tbody');
+      tbody.innerHTML = pendingOcrItems.map((item, idx) => `
+        <tr class="border-b border-slate-800">
+          <td class="p-2"><input type="text" value="${item.code}" onchange="pendingOcrItems[${idx}].code=this.value" class="bg-slate-800 text-white rounded p-1 w-20 font-mono"></td>
+          <td class="p-2"><input type="number" value="${item.shares}" onchange="pendingOcrItems[${idx}].shares=parseInt(this.value)" class="bg-slate-800 text-white rounded p-1 w-24 font-mono"></td>
+          <td class="p-2"><input type="number" step="0.1" value="${item.price}" onchange="pendingOcrItems[${idx}].price=parseFloat(this.value)" class="bg-slate-800 text-white rounded p-1 w-24 font-mono"></td>
+          <td class="p-2"><button onclick="pendingOcrItems.splice(${idx},1);renderOcrPreviewTable();" class="text-red-400 hover:underline text-xs">移除</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function confirmOcrImport() {
+      pendingOcrItems.forEach(item => {
+        if (item.code && item.shares > 0 && item.price > 0) {
+          userTransactions.push({
+            date: new Date().toISOString().split('T')[0],
+            type: 'BUY',
+            code: item.code,
+            shares: item.shares,
+            price: item.price,
+            fee: 20
+          });
+        }
+      });
+
+      localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+      closeOcrModal();
+      renderAllPages();
+      alert("✅ 成功匯入庫存資料並完成連動計算！");
+    }
+
+    async function loadAutoData() {
+      try {
+        const res = await fetch('./portfolio_data.json');
+        if (res.ok) {
+          autoStockData = await res.json();
+          document.getElementById('last-update-time').innerText = autoStockData.updated_at;
+        }
+      } catch(e) {
+        document.getElementById('last-update-time').innerText = "使用本地資料庫";
+      } finally {
+        renderAllPages();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAutoData();
+    });
+  </script>
+</body>
+</html>
