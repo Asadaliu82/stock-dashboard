@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>持股戰情室 - 個人投資儀表板</title>
+  <!-- Tailwind CSS & Chart.js & Tesseract.js OCR -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { dark: '#0F172A', card: '#1E293B', border: '#334155', accent: '#3B82F6', up: '#EF4444', down: '#10B981' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0F172A; color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .tab-btn.active { border-bottom: 2px solid #3B82F6; color: #60A5FA; font-weight: 600; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- 頂部導覽列 -->
+  <header class="glass-card sticky top-0 z-50 px-4 py-3 flex flex-wrap justify-between items-center border-b border-slate-800">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-blue-600 rounded-lg text-white"><i class="fa-solid fa-chart-line text-xl"></i></div>
+      <div>
+        <h1 class="text-lg font-bold text-white tracking-wide">持股戰情室 <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">Pro</span></h1>
+        <p class="text-xs text-slate-400">自動化資產追蹤 & 股利分析系統</p>
+      </div>
+    </div>
+    <div class="text-right text-xs text-slate-400 mt-2 sm:mt-0">
+      <span>盤後最後更新：</span><span id="last-update-time" class="text-slate-200 font-mono">載入中...</span>
+    </div>
+  </header>
+
+  <!-- 五大分頁導覽按鈕 -->
+  <nav class="glass-card px-4 border-b border-slate-800 overflow-x-auto flex space-x-6">
+    <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn active py-3 px-1 text-sm text-slate-400 hover:text-slate-200 transition whitespace-nowrap"><i class="fa-solid fa-house mr-1.5"></i>1. 資產總覽</button>
+    <button onclick="switchTab('stock-info')" id="tab-stock-info" class="tab-btn py-3 px-1 text-sm text-slate-400 hover:text-slate-200 transition whitespace-nowrap"><i class="fa-solid fa-chart-candlestick mr-1.5"></i>2. 個股與消息</button>
+    <button onclick="switchTab('realized-pnl')" id="tab-realized-pnl" class="tab-btn py-3 px-1 text-sm text-slate-400 hover:text-slate-200 transition whitespace-nowrap"><i class="fa-solid fa-receipt mr-1.5"></i>3. 實現損益紀錄</button>
+    <button onclick="switchTab('dividend')" id="tab-dividend" class="tab-btn py-3 px-1 text-sm text-slate-400 hover:text-slate-200 transition whitespace-nowrap"><i class="fa-solid fa-hand-holding-dollar mr-1.5"></i>4. 股利追蹤</button>
+    <button onclick="switchTab('transactions')" id="tab-transactions" class="tab-btn py-3 px-1 text-sm text-slate-400 hover:text-slate-200 transition whitespace-nowrap"><i class="fa-solid fa-list-check mr-1.5"></i>5. 庫存異動紀錄</button>
+  </nav>
+
+  <!-- 主內容區塊 -->
+  <main class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
+    
+    <!-- 1. 資產總覽頁面 -->
+    <section id="page-overview" class="space-y-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass-card p-4 rounded-xl">
+          <p class="text-xs text-slate-400">總市值 (NT$)</p>
+          <h2 id="total-market-val" class="text-2xl font-bold font-mono text-white mt-1">$0</h2>
+        </div>
+        <div class="glass-card p-4 rounded-xl">
+          <p class="text-xs text-slate-400">帳面未實現損益</p>
+          <h2 id="total-unrealized-pnl" class="text-2xl font-bold font-mono mt-1">$0</h2>
+        </div>
+        <div class="glass-card p-4 rounded-xl">
+          <p class="text-xs text-slate-400">預估年度總股利</p>
+          <h2 id="total-est-dividend" class="text-2xl font-bold font-mono text-emerald-400 mt-1">$0</h2>
+        </div>
+        <div class="glass-card p-4 rounded-xl">
+          <p class="text-xs text-slate-400">持股總檔數</p>
+          <h2 id="total-stock-count" class="text-2xl font-bold font-mono text-blue-400 mt-1">0</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass-card p-4 rounded-xl md:col-span-1 flex flex-col items-center">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4 self-start">資產類別配置</h3>
+          <div class="w-48 h-48"><canvas id="allocationChart"></canvas></div>
+        </div>
+        <div class="glass-card p-4 rounded-xl md:col-span-2 overflow-x-auto">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">即時持股庫存明細</h3>
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 border-b border-slate-700">
+              <tr>
+                <th class="pb-2">股票</th>
+                <th class="pb-2">現價</th>
+                <th class="pb-2">庫存股數</th>
+                <th class="pb-2">平均成本</th>
+                <th class="pb-2">損益</th>
+                <th class="pb-2">報酬率</th>
+              </tr>
+            </thead>
+            <tbody id="overview-stock-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 個股與消息分析頁面 -->
+    <section id="page-stock-info" class="space-y-6 hidden">
+      <div class="flex items-center space-x-4">
+        <label class="text-sm text-slate-400">選擇分析個股：</label>
+        <select id="stock-select" onchange="renderStockDetails()" class="bg-slate-800 text-white border border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+          <option value="2330">2330 台積電</option>
+          <option value="2454">2454 聯發科</option>
+          <option value="6213">6213 聯茂</option>
+          <option value="3605">3605 宏致</option>
+          <option value="6530">6530 創威</option>
+          <option value="6168">6168 宏齊</option>
+          <option value="00713">00713 元大台灣高息低波</option>
+          <option value="00712">00712 復華富時不動產</option>
+          <option value="00933B">00933B 國泰10Y+金融債</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="glass-card p-4 rounded-xl">
+          <h3 class="text-sm font-semibold text-slate-200 mb-2">近期價格走勢與 20MA 均線</h3>
+          <canvas id="stockPriceChart" class="max-h-64"></canvas>
+        </div>
+        <div class="glass-card p-4 rounded-xl">
+          <h3 class="text-sm font-semibold text-slate-200 mb-2">即時個股新聞與市場情報</h3>
+          <div id="stock-news-list" class="space-y-3 text-sm"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 實現損益紀錄頁面 -->
+    <section id="page-realized-pnl" class="space-y-6 hidden">
+      <div class="glass-card p-4 rounded-xl">
+        <h3 class="text-sm font-semibold text-slate-200 mb-4">已實現賣出交易統計</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 border-b border-slate-700">
+              <tr>
+                <th class="pb-2">賣出日期</th>
+                <th class="pb-2">股票</th>
+                <th class="pb-2">股數</th>
+                <th class="pb-2">買進均價</th>
+                <th class="pb-2">賣出均價</th>
+                <th class="pb-2">手續費/稅</th>
+                <th class="pb-2">實現損益</th>
+              </tr>
+            </thead>
+            <tbody id="realized-pnl-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 股利追蹤頁面 -->
+    <section id="page-dividend" class="space-y-6 hidden">
+      <div class="glass-card p-4 rounded-xl">
+        <h3 class="text-sm font-semibold text-slate-200 mb-4">歷史發放與預估領息明細</h3>
+        <p class="text-xs text-slate-400 mb-4">自動根據最新持股庫存張數計算每期應領股利。</p>
+        <div id="dividend-list" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- 5. 庫存異動紀錄與群益 OCR 頁面 -->
+    <section id="page-transactions" class="space-y-6 hidden">
+      <div class="flex flex-wrap gap-3 justify-between items-center">
+        <h3 class="text-lg font-bold text-white">庫存交易紀錄</h3>
+        <div class="flex space-x-2">
+          <button onclick="document.getElementById('ocr-file-input').click()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-camera mr-2"></i>📷 匯入群益庫存截圖 (OCR)</button>
+          <input type="file" id="ocr-file-input" class="hidden" accept="image/*" onchange="processGroupBenefitScreenshot(event)">
+          <button onclick="openTransactionModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-plus mr-1"></i> 手動新增交易</button>
+        </div>
+      </div>
+
+      <div id="ocr-loading" class="hidden glass-card p-4 rounded-xl text-center text-blue-400 animate-pulse">
+        <i class="fa-solid fa-spinner fa-spin mr-2"></i>正在辨識群益 App 截圖中，請稍候...
+      </div>
+
+      <div class="glass-card p-4 rounded-xl overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="text-xs text-slate-400 border-b border-slate-700">
+            <tr>
+              <th class="pb-2">日期</th>
+              <th class="pb-2">類別</th>
+              <th class="pb-2">代號</th>
+              <th class="pb-2">單價</th>
+              <th class="pb-2">股數</th>
+              <th class="pb-2">手續費</th>
+              <th class="pb-2">操作</th>
+            </tr>
+          </thead>
+          <tbody id="transaction-history-table"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- 手動輸入交易 Modal -->
+  <div id="tx-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden z-50">
+    <div class="glass-card p-6 rounded-xl max-w-md w-full mx-4 space-y-4">
+      <h3 class="text-lg font-bold text-white">新增交易紀錄</h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="text-slate-400 block mb-1">交易類型</label>
+          <select id="tx-type" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
+            <option value="BUY">買進 (BUY)</option>
+            <option value="SELL">賣出 (SELL)</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">股票代號</label>
+          <input type="text" id="tx-code" placeholder="例: 2330" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">交易單價 (NT$)</label>
+          <input type="number" id="tx-price" placeholder="1000" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">交易股數</label>
+          <input type="number" id="tx-shares" placeholder="1000" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">手續費 (NT$)</label>
+          <input type="number" id="tx-fee" placeholder="20" value="20" class="w-full bg-slate-800 text-white rounded p-2 border border-slate-700">
+        </div>
+      </div>
+      <div class="flex justify-end space-x-3 pt-2">
+        <button onclick="closeTransactionModal()" class="px-4 py-2 text-slate-400 hover:text-white">取消</button>
+        <button onclick="saveTransaction()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 預設資料邏輯與基本互動
+    let userTransactions = JSON.parse(localStorage.getItem('user_tx') || '[]');
+    let autoStockData = null;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`page-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    function openTransactionModal() { document.getElementById('tx-modal').classList.remove('hidden'); }
+    function closeTransactionModal() { document.getElementById('tx-modal').classList.add('hidden'); }
+
+    function saveTransaction() {
+      const tx = {
+        date: new Date().toISOString().split('T')[0],
+        type: document.getElementById('tx-type').value,
+        code: document.getElementById('tx-code').value.trim(),
+        price: parseFloat(document.getElementById('tx-price').value),
+        shares: parseInt(document.getElementById('tx-shares').value),
+        fee: parseFloat(document.getElementById('tx-fee').value || 0)
+      };
+      userTransactions.push(tx);
+      localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+      closeTransactionModal();
+      renderAllPages();
+    }
+
+    // 群益 App 截圖 OCR 辨識邏輯
+    async function processGroupBenefitScreenshot(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      document.getElementById('ocr-loading').classList.remove('hidden');
+      try {
+        const worker = await Tesseract.createWorker('chi_tra+eng');
+        const ret = await worker.recognize(file);
+        await worker.terminate();
+
+        const text = ret.data.text;
+        console.log("OCR 辨識結果：", text);
+
+        // 解析群益專屬排版邏輯 (尋找 4位或5位數字代號 + 股數 + 均價)
+        const lines = text.split('\n');
+        let addedCount = 0;
+
+        lines.forEach(line => {
+          const match = line.match(/(\d{4,5}[B]?)\s+.*?(\d{1,6})\s+(\d+\.?\d*)/);
+          if (match) {
+            userTransactions.push({
+              date: new Date().toISOString().split('T')[0],
+              type: 'BUY',
+              code: match[1],
+              shares: parseInt(match[2]),
+              price: parseFloat(match[3]),
+              fee: 20
+            });
+            addedCount++;
+          }
+        });
+
+        localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+        alert(addedCount > 0 ? `成功自動辨識並匯入 ${addedCount} 筆持股紀錄！` : '辨識完成，未能自動比對到欄位，請嘗試選擇更清晰的截圖或手動新增。');
+        renderAllPages();
+      } catch (err) {
+        alert('OCR 辨識失敗：' + err.message);
+      } finally {
+        document.getElementById('ocr-loading').classList.add('hidden');
+      }
+    }
+
+    async function loadAutoData() {
+      try {
+        const res = await fetch('./portfolio_data.json');
+        if (res.ok) {
+          autoStockData = await res.json();
+          document.getElementById('last-update-time').innerText = autoStockData.updated_at;
+          renderAllPages();
+        }
+      } catch(e) {
+        document.getElementById('last-update-time').innerText = "使用本地測試數據";
+      }
+    }
+
+    function renderAllPages() {
+      // 渲染交易紀錄表格
+      const tbody = document.getElementById('transaction-history-table');
+      if (tbody) {
+        tbody.innerHTML = userTransactions.map((tx, idx) => `
+          <tr class="border-b border-slate-800">
+            <td class="py-2">${tx.date}</td>
+            <td class="py-2 ${tx.type==='BUY'?'text-red-400':'text-emerald-400'}">${tx.type==='BUY'?'買進':'賣出'}</td>
+            <td class="py-2 font-mono">${tx.code}</td>
+            <td class="py-2 font-mono">$${tx.price}</td>
+            <td class="py-2 font-mono">${tx.shares}</td>
+            <td class="py-2 font-mono">$${tx.fee}</td>
+            <td class="py-2"><button onclick="deleteTx(${idx})" class="text-xs text-red-400 hover:underline">刪除</button></td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function deleteTx(idx) {
+      userTransactions.splice(idx, 1);
+      localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+      renderAllPages();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAutoData();
+    });
+  </script>
+</body>
+</html>
