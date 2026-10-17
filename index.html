@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -34,7 +35,7 @@
       <div class="p-2 bg-blue-600 rounded-lg text-white"><i class="fa-solid fa-chart-line text-xl"></i></div>
       <div>
         <h1 class="text-lg font-bold text-white tracking-wide">持股戰情室 <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">Pro</span></h1>
-        <p class="text-xs text-slate-400">自動化資產追蹤 & 股利分析系統</p>
+        <p class="text-xs text-slate-400">持股管理、消息彙整與股利分析系統</p>
       </div>
     </div>
     <div class="text-right text-xs text-slate-400 mt-2 sm:mt-0">
@@ -75,6 +76,10 @@
         </div>
       </div>
 
+      <div class="glass-card p-4 rounded-xl space-y-3">
+        <div class="flex flex-wrap items-center gap-3 justify-between"><h3 class="font-semibold">持股分類管理</h3><div class="flex flex-wrap gap-2"><select id="overview-category-filter" onchange="renderAllPages()" class="bg-slate-800 text-white border border-slate-700 rounded p-2 text-sm"><option value="全部">全部分類</option></select><input id="new-category-name" placeholder="新增分類名稱" class="bg-slate-800 text-white border border-slate-700 rounded p-2 text-sm"><button onclick="addStockCategory()" class="bg-blue-600 rounded px-3 py-2 text-sm">新增分類</button></div></div>
+        <p class="text-xs text-slate-400">可為每檔持股指定分類，例如長期、短期、科技股、傳產股；分類會保存在此瀏覽器。</p>
+      </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="glass-card p-4 rounded-xl md:col-span-1 flex flex-col items-center">
           <h3 class="text-sm font-semibold text-slate-200 mb-4 self-start">資產類別配置</h3>
@@ -89,6 +94,7 @@
                 <th class="pb-2">現價</th>
                 <th class="pb-2">庫存股數</th>
                 <th class="pb-2">平均成本</th>
+                <th class="pb-2">買入日期</th>
                 <th class="pb-2">損益</th>
                 <th class="pb-2">報酬率</th>
               </tr>
@@ -105,14 +111,12 @@
         <label class="text-sm text-slate-400">選擇分析個股：</label>
         <select id="stock-select" onchange="renderStockDetails()" class="bg-slate-800 text-white border border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"></select>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div id="stock-analysis-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+      <div class="grid grid-cols-1 gap-6">
         <div class="glass-card p-4 rounded-xl">
-          <h3 class="text-sm font-semibold text-slate-200 mb-2">近期價格走勢</h3>
-          <canvas id="stockPriceChart" class="max-h-64"></canvas>
-        </div>
-        <div class="glass-card p-4 rounded-xl">
-          <h3 class="text-sm font-semibold text-slate-200 mb-2">個股新聞與消息</h3>
-          <div id="stock-news-list" class="space-y-3 text-sm"></div>
+          <h3 class="text-sm font-semibold text-slate-200 mb-2">個股消息中心</h3>
+          <p class="text-xs text-slate-400 mb-3">依所選持股快速查詢新聞、公司重大訊息、營收與財報。新聞內容由外部網站提供；本頁不串接歷史股價，也不會把搜尋結果誤當成已核實的利多或利空。</p>
+          <div id="stock-news-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"></div>
         </div>
       </div>
     </section>
@@ -142,10 +146,24 @@
 
     <!-- 4. 股利追蹤頁面 -->
     <section id="page-dividend" class="space-y-6 hidden">
-      <div class="glass-card p-4 rounded-xl">
-        <h3 class="text-sm font-semibold text-slate-200 mb-4">預估領息明細</h3>
+      <div class="glass-card p-4 rounded-xl space-y-4">
+        <h3 class="text-sm font-semibold text-slate-200">股利篩選與統計</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <label class="text-xs text-slate-400">股票<select id="dividend-stock-filter" onchange="renderDividendPage()" class="block w-full mt-1 bg-slate-800 text-white rounded p-2"><option value="全部">全部股票</option></select></label>
+          <label class="text-xs text-slate-400">年度<select id="dividend-year-filter" onchange="renderDividendPage()" class="block w-full mt-1 bg-slate-800 text-white rounded p-2"></select></label>
+          <label class="text-xs text-slate-400">顯示內容<select id="dividend-type-filter" onchange="renderDividendPage()" class="block w-full mt-1 bg-slate-800 text-white rounded p-2"><option value="全部">已領＋預估</option><option value="已領">過往已領股利</option><option value="預估">未來預估股利</option></select></label>
+          <div class="flex items-end gap-2"><button onclick="openDividendEntry()" class="bg-emerald-700 hover:bg-emerald-600 rounded px-3 py-2 text-sm w-full">＋ 人工訂正股利</button></div>
+        </div>
+        <div class="flex flex-wrap gap-2"><button onclick="importTwseDividends2025()" class="bg-indigo-700 hover:bg-indigo-600 rounded px-3 py-2 text-sm">匯入 2025 台股除權息資料</button></div><p id="dividend-data-status" class="text-xs text-slate-400">除權息資料來源：證交所公開報表。匯入需要網路連線；若瀏覽器阻擋跨網域請求，請使用官方報表 CSV 匯入方式。</p><div id="dividend-summary" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div><p class="text-xs text-amber-300">除息資格估算：在第 1 頁填寫各股買入日期；買入日期晚於除息日通常不符合資格。歷史股利金額以官方資料可取得欄位為準；若有多次買進、部分賣出或庫存變動，仍需人工訂正當時持股股數。</p>
+      </div>
+      <div class="glass-card p-4 rounded-xl space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-semibold text-slate-200">各股領息明細</h3><button onclick="openDividendSettings()" class="text-sm text-blue-300 underline">設定各股預估每股年配息</button></div>
         <div id="dividend-list" class="space-y-3"></div>
       </div>
+      <div id="dividend-entry" class="glass-card p-4 rounded-xl hidden space-y-3">
+        <h3 class="font-semibold">登記已領股利</h3><div class="grid grid-cols-1 md:grid-cols-5 gap-3"><label class="text-xs text-slate-400">股票代號<input id="div-entry-code" class="block w-full mt-1 bg-slate-800 rounded p-2" placeholder="例如 0056"></label><label class="text-xs text-slate-400">除息日期<input id="div-entry-date" type="date" class="block w-full mt-1 bg-slate-800 rounded p-2"></label><label class="text-xs text-slate-400">每股股利<input id="div-entry-dps" type="number" min="0" step="0.001" class="block w-full mt-1 bg-slate-800 rounded p-2"></label><label class="text-xs text-slate-400">股利總額（未扣費，可選）<input id="div-entry-amount" type="number" min="0" step="1" class="block w-full mt-1 bg-slate-800 rounded p-2" placeholder="未填則自動估算"></label><label class="text-xs text-slate-400">股利匯費扣除<input id="div-entry-fee" type="number" min="0" step="1" value="0" class="block w-full mt-1 bg-slate-800 rounded p-2" placeholder="例如 10"></label></div><div class="flex gap-2"><button onclick="saveDividendEntry()" class="bg-blue-600 rounded px-4 py-2 text-sm">儲存</button><button onclick="document.getElementById('dividend-entry').classList.add('hidden')" class="text-slate-300 px-4 py-2 text-sm">取消</button></div><p class="text-xs text-slate-400">日期請填除息日。系統依買入日期判斷是否符合除息資格；若填股利總額則採該金額，否則以符合資格股數 × 每股股利估算；再扣除股利匯費，計算淨領金額。除息日及每股股利仍需有資料才能計算，資格判斷結果可人工確認。</p>
+      </div>
+      <div id="dividend-settings" class="glass-card p-4 rounded-xl hidden space-y-3"><h3 class="font-semibold">設定預估每股年配息</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-3"><label class="text-xs text-slate-400">股票代號<input id="div-setting-code" class="block w-full mt-1 bg-slate-800 rounded p-2" placeholder="例如 0056"></label><label class="text-xs text-slate-400">每股年配息（元）<input id="div-setting-dps" type="number" min="0" step="0.001" class="block w-full mt-1 bg-slate-800 rounded p-2"></label><div class="flex items-end"><button onclick="saveDividendSetting()" class="bg-blue-600 rounded px-4 py-2 text-sm">儲存設定</button></div></div><p class="text-xs text-amber-300">預估值由你自行設定，並非即時預測或保證配息；未設定的股票不會假設有股利。</p></div>
     </section>
 
     <!-- 5. 庫存異動紀錄頁面 -->
@@ -154,12 +172,15 @@
         <h3 class="text-lg font-bold text-white">庫存交易紀錄</h3>
         <div class="flex space-x-2">
           <button onclick="clearAllData()" class="bg-red-900/60 hover:bg-red-800 text-red-200 px-3 py-1.5 rounded-lg text-sm"><i class="fa-solid fa-trash mr-1"></i>清空紀錄</button>
+          <button onclick="document.getElementById('xlsx-file-input').click()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-file-excel mr-2"></i>匯入目前庫存 Excel</button>
+          <input type="file" id="xlsx-file-input" class="hidden" accept=".xlsx,.xls" onchange="importStockSnapshotExcel(event)">
           <button onclick="document.getElementById('ocr-file-input').click()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-camera mr-2"></i>📷 匯入群益截圖 (OCR)</button>
           <input type="file" id="ocr-file-input" class="hidden" accept="image/*" onchange="processGroupBenefitScreenshot(event)">
           <button onclick="openTransactionModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center"><i class="fa-solid fa-plus mr-1"></i> 手動新增交易</button>
         </div>
       </div>
 
+      <p id="snapshot-status" class="text-xs text-slate-400">目前庫存快照尚未匯入。匯入 Excel 只會更新目前持股，不會新增買進交易。</p>
       <div id="ocr-loading" class="hidden glass-card p-4 rounded-xl text-center text-blue-400 animate-pulse">
         <i class="fa-solid fa-spinner fa-spin mr-2"></i>正在辨識群益截圖中，請稍候...
       </div>
@@ -260,10 +281,16 @@
     };
 
     let userTransactions = JSON.parse(localStorage.getItem('user_tx') || '[]');
+    // 目前庫存快照獨立儲存，不混入買賣交易
+    let stockSnapshot = JSON.parse(localStorage.getItem('user_stock_snapshot') || '[]');
     let pendingOcrItems = [];
     let autoStockData = null;
     let allocationChart = null;
     let priceChart = null;
+    let stockCategories = JSON.parse(localStorage.getItem('stock_categories') || '{}');
+    let customCategories = JSON.parse(localStorage.getItem('stock_custom_categories') || '["長期","短期","科技股","傳產股","高股息","債券","其他"]');
+    let dividendRecords = JSON.parse(localStorage.getItem('user_dividend_records') || '[]');
+    let dividendSettings = JSON.parse(localStorage.getItem('user_dividend_settings') || '{}');
 
     function switchTab(tabId) {
       document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
@@ -291,14 +318,22 @@
       const shares = parseInt(document.getElementById('tx-shares').value);
       const fee = parseFloat(document.getElementById('tx-fee').value || 0);
 
-      if (!code || isNaN(price) || isNaN(shares) || price <= 0 || shares <= 0) {
-        alert("請輸入有效的股票代號、價格與股數！");
+      const type = document.getElementById('tx-type').value;
+      if (!code || isNaN(price) || isNaN(shares) || price <= 0 || shares <= 0 || !Number.isFinite(fee) || fee < 0) {
+        alert("請輸入有效的股票代號、價格、股數與手續費！");
         return;
+      }
+      if (type === 'SELL') {
+        const current = calculatePortfolioState().holdings[code]?.shares || 0;
+        if (shares > current) {
+          alert(`賣出股數（${shares}）超過目前庫存（${current}），請先確認交易紀錄。`);
+          return;
+        }
       }
 
       userTransactions.push({
         date: new Date().toISOString().split('T')[0],
-        type: document.getElementById('tx-type').value,
+        type,
         code, price, shares, fee
       });
 
@@ -315,54 +350,68 @@
 
     // 計算庫存與狀態防錯引擎
     function calculatePortfolioState() {
-      const holdings = {};
+      const transactionHoldings = {};
       const realizedList = [];
 
+      // 真正的買賣紀錄只用於交易計算及已實現損益
       userTransactions.forEach(tx => {
-        const code = tx.code;
+        const code = String(tx.code || '').trim().toUpperCase();
         const price = Number(tx.price) || 0;
         const shares = Number(tx.shares) || 0;
         const fee = Number(tx.fee) || 0;
+        if (!code || price <= 0 || shares <= 0) return;
 
-        if (price <= 0 || shares <= 0) return; // 自動過濾異常數據
-
-        if (!holdings[code]) {
-          holdings[code] = { shares: 0, totalCost: 0 };
-        }
+        if (!transactionHoldings[code]) transactionHoldings[code] = { shares: 0, totalCost: 0 };
 
         if (tx.type === 'BUY') {
-          holdings[code].shares += shares;
-          holdings[code].totalCost += (price * shares) + fee;
+          transactionHoldings[code].shares += shares;
+          transactionHoldings[code].totalCost += (price * shares) + fee;
         } else if (tx.type === 'SELL') {
-          const avgCost = holdings[code].shares > 0 ? (holdings[code].totalCost / holdings[code].shares) : price;
-          const sellRevenue = (price * shares) - fee;
-          const costBasis = avgCost * shares;
-          const pnl = sellRevenue - costBasis;
-
-          realizedList.push({
-            date: tx.date,
-            code: code,
-            shares: shares,
-            buyAvg: avgCost.toFixed(1),
-            sellAvg: price,
-            fee: fee,
-            pnl: Math.round(pnl)
-          });
-
-          holdings[code].shares -= shares;
-          holdings[code].totalCost -= costBasis;
-          if (holdings[code].shares <= 0) {
-            holdings[code].shares = 0;
-            holdings[code].totalCost = 0;
+          const availableShares = transactionHoldings[code].shares;
+          if (availableShares <= 0 || shares > availableShares) {
+            realizedList.push({ date: tx.date, code, shares, buyAvg: '—', sellAvg: price, fee, pnl: null, invalid: true });
+            return;
+          }
+          const avgCost = transactionHoldings[code].totalCost / availableShares;
+          const pnl = ((price * shares) - fee) - (avgCost * shares);
+          realizedList.push({ date: tx.date, code, shares, buyAvg: avgCost.toFixed(2), sellAvg: price, fee, pnl: Math.round(pnl) });
+          transactionHoldings[code].shares -= shares;
+          transactionHoldings[code].totalCost -= avgCost * shares;
+          if (transactionHoldings[code].shares <= 0) {
+            transactionHoldings[code].shares = 0;
+            transactionHoldings[code].totalCost = 0;
           }
         }
       });
 
+      // 有匯入快照時，頁面一、二、四使用快照；頁面三、五仍使用交易紀錄
+      let holdings = transactionHoldings;
+      if (Array.isArray(stockSnapshot) && stockSnapshot.length > 0) {
+        holdings = {};
+        stockSnapshot.forEach(item => {
+          const code = String(item.code || '').trim().toUpperCase();
+          const shares = Number(item.shares) || 0;
+          const avgCost = Number(item.avgCost) || 0;
+          if (!code || shares <= 0 || avgCost < 0) return;
+          holdings[code] = {
+            shares, totalCost: shares * avgCost,
+            snapshotPrice: Number(item.price) || 0,
+            snapshotName: item.name || code,
+            snapshotMarketValue: Number(item.marketValue) || 0
+          };
+        });
+      }
       return { holdings, realizedList };
     }
 
     function renderAllPages() {
       const { holdings, realizedList } = calculatePortfolioState();
+      const snapshotStatus = document.getElementById('snapshot-status');
+      if (snapshotStatus) {
+        snapshotStatus.textContent = stockSnapshot.length
+          ? `目前庫存快照：${stockSnapshot.length} 檔。頁面一、二、四使用 Excel 快照；頁面三、五使用獨立的交易紀錄。`
+          : '目前庫存快照尚未匯入。匯入 Excel 只會更新目前持股，不會新增買進交易。';
+      }
 
       // 1. 頁面五表格
       const txTbody = document.getElementById('transaction-history-table');
@@ -385,27 +434,27 @@
       let totalCost = 0;
       let totalEstDividend = 0;
       let stockCount = 0;
-      const categoryTotals = { "核心權值": 0, "AI中小型": 0, "高息防禦": 0, "其他": 0 };
+      const categoryTotals = {};
       const stockRows = [];
 
       Object.keys(holdings).forEach(code => {
         const h = holdings[code];
-        if (h.shares > 0 && h.totalCost > 0) {
+        if (h.shares > 0) {
           stockCount++;
           const avgCost = h.totalCost / h.shares;
-          let curPrice = avgCost;
-          let name = KNOWN_STOCKS[code]?.name || `個股 ${code}`;
-          let category = KNOWN_STOCKS[code]?.category || "其他";
-          let dps = KNOWN_STOCKS[code]?.dps || 0;
+          let curPrice = h.snapshotPrice > 0 ? h.snapshotPrice : avgCost;
+          let name = h.snapshotName || KNOWN_STOCKS[code]?.name || `個股 ${code}`;
+          let category = stockCategories[code] || KNOWN_STOCKS[code]?.category || "其他";
+          let dps = Number(dividendSettings[code] ?? KNOWN_STOCKS[code]?.dps ?? 0);
 
-          if (autoStockData && autoStockData.stocks && autoStockData.stocks[code]) {
+          if (!(h.snapshotPrice > 0) && autoStockData && autoStockData.stocks && autoStockData.stocks[code]) {
             curPrice = autoStockData.stocks[code].price || avgCost;
             name = autoStockData.stocks[code].name || name;
           }
 
-          const marketVal = h.shares * curPrice;
+          const marketVal = h.snapshotMarketValue > 0 ? h.snapshotMarketValue : h.shares * curPrice;
           const pnl = marketVal - h.totalCost;
-          const roi = ((pnl / h.totalCost) * 100).toFixed(2);
+          const roi = h.totalCost > 0 ? ((pnl / h.totalCost) * 100).toFixed(2) + '%' : '—';
           const estDiv = h.shares * dps;
 
           totalMarketVal += marketVal;
@@ -414,14 +463,16 @@
 
           categoryTotals[category] = (categoryTotals[category] || 0) + marketVal;
 
+          const catOptions = [...new Set([...customCategories, category])].map(c => `<option value="${c}" ${c===category?'selected':''}>${c}</option>`).join('');
           stockRows.push(`
-            <tr class="border-b border-slate-800">
-              <td class="py-2 font-semibold text-white">${name} <span class="text-xs text-slate-500 font-mono">(${code})</span></td>
+            <tr class="border-b border-slate-800" data-stock-category="${category}">
+              <td class="py-2 font-semibold text-white">${name} <span class="text-xs text-slate-500 font-mono">(${code})</span><select aria-label="${code}分類" onchange="setStockCategory('${code}',this.value)" class="block mt-1 bg-slate-800 text-xs text-slate-200 rounded p-1">${catOptions}</select></td>
               <td class="py-2 font-mono">$${curPrice}</td>
               <td class="py-2 font-mono">${h.shares}</td>
               <td class="py-2 font-mono">$${avgCost.toFixed(1)}</td>
+              <td class="py-2"><input type="date" aria-label="${code}買入日期" value="${stockSnapshot.find(x=>x.code===code)?.buyDate||''}" onchange="setStockBuyDate('${code}',this.value)" class="bg-slate-800 text-xs text-slate-200 rounded p-1 w-32" title="填寫首次買入日期，供除息資格估算"></td>
               <td class="py-2 font-mono ${pnl>=0?'text-red-400':'text-emerald-400'}">${pnl>=0?'+':''}$${Math.round(pnl)}</td>
-              <td class="py-2 font-mono ${pnl>=0?'text-red-400':'text-emerald-400'}">${roi}%</td>
+              <td class="py-2 font-mono ${pnl>=0?'text-red-400':'text-emerald-400'}">${roi}</td>
             </tr>
           `);
         }
@@ -437,11 +488,22 @@
 
       const overviewTable = document.getElementById('overview-stock-table');
       if (overviewTable) {
-        overviewTable.innerHTML = stockRows.length > 0 ? stockRows.join('') : `<tr><td colspan="6" class="py-4 text-center text-slate-500">尚無庫存資料</td></tr>`;
+        overviewTable.innerHTML = stockRows.length > 0 ? stockRows.join('') : `<tr><td colspan="7" class="py-4 text-center text-slate-500">尚無庫存資料</td></tr>`;
       }
 
+      const catFilter = document.getElementById('overview-category-filter');
+      if (catFilter) {
+        const old = catFilter.value || '全部';
+        const cats = [...new Set([...customCategories, ...Object.values(stockCategories), ...Object.keys(categoryTotals)])].sort();
+        catFilter.innerHTML = '<option value="全部">全部分類</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+        catFilter.value = cats.includes(old) || old==='全部' ? old : '全部';
+        overviewTable?.querySelectorAll('tr[data-stock-category]').forEach(row => row.classList.toggle('hidden', catFilter.value!=='全部' && row.dataset.stockCategory!==catFilter.value));
+      }
       renderAllocationChart(categoryTotals);
       updateStockSelectOptions(holdings);
+      updateDividendFilterOptions(holdings);
+      renderStockDetails();
+      renderDividendPage();
 
       // 3. 頁面三
       const realizedTbody = document.getElementById('realized-pnl-table');
@@ -451,50 +513,34 @@
             <td class="py-2">${r.date}</td>
             <td class="py-2 font-semibold text-white">${r.code}</td>
             <td class="py-2 font-mono">${r.shares}</td>
-            <td class="py-2 font-mono">$${r.buyAvg}</td>
+            <td class="py-2 font-mono">${r.invalid ? '庫存不足' : '$' + r.buyAvg}</td>
             <td class="py-2 font-mono">$${r.sellAvg}</td>
             <td class="py-2 font-mono">$${r.fee}</td>
-            <td class="py-2 font-mono ${r.pnl>=0?'text-red-400':'text-emerald-400'}">${r.pnl>=0?'+':''}$${r.pnl}</td>
+            <td class="py-2 font-mono ${r.pnl === null ? 'text-amber-400' : r.pnl>=0?'text-red-400':'text-emerald-400'}">${r.pnl === null ? '未計算' : (r.pnl>=0?'+':'')+'$'+r.pnl}</td>
           </tr>
         `).join('') : `<tr><td colspan="7" class="py-4 text-center text-slate-500">尚無實現損益紀錄</td></tr>`;
       }
 
-      // 4. 頁面四
-      const divContainer = document.getElementById('dividend-list');
-      if (divContainer) {
-        const divItems = [];
-        Object.keys(holdings).forEach(code => {
-          if (holdings[code].shares > 0) {
-            const shares = holdings[code].shares;
-            const dps = KNOWN_STOCKS[code]?.dps || 1.0;
-            const totalDiv = Math.round(shares * dps);
-            const name = KNOWN_STOCKS[code]?.name || code;
-            divItems.push(`
-              <div class="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                <div>
-                  <h4 class="font-bold text-white">${name} (${code})</h4>
-                  <p class="text-xs text-slate-400">庫存 ${shares} 股 × 預估配息 $${dps}</p>
-                </div>
-                <div class="text-right">
-                  <span class="text-lg font-bold font-mono text-emerald-400">+$${totalDiv.toLocaleString()}</span>
-                  <p class="text-xs text-slate-500">預估年度股利</p>
-                </div>
-              </div>
-            `);
-          }
-        });
-        divContainer.innerHTML = divItems.length > 0 ? divItems.join('') : `<p class="text-slate-500 text-center py-4">目前尚無庫存股利計算</p>`;
-      }
+      // 4. 頁面四由 renderDividendPage() 依股票／年度／內容篩選顯示。
+      renderDividendPage();
     }
 
     function updateStockSelectOptions(holdings) {
       const select = document.getElementById('stock-select');
       if (!select) return;
-      const codes = new Set([...Object.keys(holdings), ...Object.keys(KNOWN_STOCKS)]);
-      select.innerHTML = Array.from(codes).map(code => {
-        const name = KNOWN_STOCKS[code]?.name || code;
+      // 只列出目前仍有持股的股票，避免預設清單造成「有選項卻沒有庫存」的誤會
+      const codes = Object.keys(holdings).filter(code => Number(holdings[code]?.shares) > 0);
+      const previous = select.value;
+      if (!codes.length) {
+        select.innerHTML = '<option value="">尚無持股資料</option>';
+        return;
+      }
+      select.innerHTML = codes.map(code => {
+        const snapshotItem = stockSnapshot.find(item => item.code === code);
+        const name = snapshotItem?.name || KNOWN_STOCKS[code]?.name || code;
         return `<option value="${code}">${code} ${name}</option>`;
       }).join('');
+      if (codes.includes(previous)) select.value = previous;
     }
 
     function renderAllocationChart(categoryTotals) {
@@ -515,73 +561,297 @@
 
     function renderStockDetails() {
       const select = document.getElementById('stock-select');
-      if (!select || !select.value) return;
+      if (!select || !select.value) {
+        const news = document.getElementById('stock-news-list'); if (news) news.innerHTML = '<p class="text-slate-500">請先匯入目前庫存或新增持股。</p>';
+        const note = document.getElementById('price-chart-note'); if (note) note.textContent = '尚無持股可分析。';
+        return;
+      }
       const code = select.value;
-      const ctx = document.getElementById('stockPriceChart').getContext('2d');
-      if (priceChart) priceChart.destroy();
-
-      priceChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: ['10/10', '10/11', '10/12', '10/13', '10/14', '10/15', '10/16'],
-          datasets: [{
-            label: `${code} 價格`,
-            data: [100, 102, 101, 104, 103, 105, 106],
-            borderColor: '#3B82F6',
-            borderWidth: 2,
-            fill: false
-          }]
-        },
-        options: { scales: { y: { ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } } }
-      });
-
+      const { holdings } = calculatePortfolioState();
+      const h = holdings[code] || {};
+      const shares = Number(h.shares)||0, avgCost = shares ? (Number(h.totalCost)||0)/shares : 0;
+      const snap = stockSnapshot.find(x=>x.code===code) || {};
+      const quote = Number(snap.price || h.snapshotPrice || autoStockData?.stocks?.[code]?.price || 0);
+      const marketValue = Number(snap.marketValue || h.snapshotMarketValue || (quote*shares));
+      const pnl = marketValue - (Number(h.totalCost)||0);
+      const summary = document.getElementById('stock-analysis-summary');
+      if (summary) summary.innerHTML = [
+        ['庫存股數',shares.toLocaleString()+' 股'],['目前參考價',quote ? '$'+quote.toLocaleString() : '無行情'],['平均成本',avgCost ? '$'+avgCost.toFixed(2) : '—'],['帳面損益',quote ? (pnl>=0?'+$':'-$')+Math.abs(Math.round(pnl)).toLocaleString() : '無法計算']
+      ].map(([label,val])=>`<div class="glass-card rounded-lg p-3"><p class="text-xs text-slate-400">${label}</p><p class="text-lg font-semibold mt-1">${val}</p></div>`).join('');
+      if (priceChart) { priceChart.destroy(); priceChart=null; }
       const newsList = document.getElementById('stock-news-list');
-      newsList.innerHTML = `<div class="p-2 border-b border-slate-800"><a href="#" class="text-blue-400 hover:underline">【即時消息】${KNOWN_STOCKS[code]?.name || code} 近期營運維持穩定。</a></div>`;
+      const name = snap.name || KNOWN_STOCKS[code]?.name || code;
+      const q = encodeURIComponent(`${code} ${name} 股票 新聞`);
+      const mq = encodeURIComponent(`${code} ${name} 重大訊息 公開資訊觀測站`);
+      const rq = encodeURIComponent(`${code} ${name} 月營收 財報`);
+      const card = (url, title, desc) => `<a target="_blank" rel="noopener noreferrer" href="${url}" class="block p-4 rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700/70"><span class="block text-blue-300 font-semibold">${title}</span><span class="block text-xs text-slate-400 mt-1">${desc}</span></a>`;
+      newsList.innerHTML =
+        card(`https://news.google.com/search?q=${q}`, `📰 Google 新聞：${name}（${code}）`, '近期新聞與市場消息') +
+        card(`https://www.google.com/search?q=${mq}`, '📣 重大訊息與公司公告', '搜尋公開資訊觀測站及公司公告') +
+        card(`https://www.google.com/search?q=${rq}`, '📊 月營收、財報與法說會', '查詢營收公告、財務報告及法說會資訊') +
+        card(`https://www.google.com/search?q=${encodeURIComponent(code+' '+name+' 產業 趨勢 利多 利空')}`, '🏭 產業趨勢與市場觀點', '整理產業消息，利多利空仍需閱讀原文判斷') +
+        card(`https://mops.twse.com.tw/mops/#/web/home`, '🏛️ 公開資訊觀測站', '官方公司資訊入口') +
+        card(`https://www.twse.com.tw/`, '🏢 臺灣證券交易所', '上市公司與市場公告') +
+        card(`https://www.tpex.org.tw/`, '🏢 證券櫃檯買賣中心', '上櫃公司與市場公告');
     }
 
-    // OCR 辨識邏輯：擷取後先載入校對彈窗
+    function addStockCategory() {
+      const input=document.getElementById('new-category-name'); const name=(input.value||'').trim();
+      if(!name) return alert('請輸入分類名稱。');
+      if(!customCategories.includes(name)) customCategories.push(name);
+      localStorage.setItem('stock_custom_categories',JSON.stringify(customCategories)); input.value=''; renderAllPages();
+    }
+    function setStockCategory(code, category) {
+      stockCategories[code]=category; localStorage.setItem('stock_categories',JSON.stringify(stockCategories)); renderAllPages();
+    }
+    function setStockBuyDate(code, date) {
+      const item = stockSnapshot.find(x => x.code === code);
+      if (!item) { alert('請先匯入目前庫存 Excel，才能為這檔庫存設定買入日期。'); return; }
+      item.buyDate = date || '';
+      localStorage.setItem('user_stock_snapshot', JSON.stringify(stockSnapshot));
+      renderDividendPage();
+    }
+    function updateDividendFilterOptions(holdings) {
+      const sel=document.getElementById('dividend-stock-filter'); if(!sel)return;
+      const old=sel.value||'全部'; const codes=Object.keys(holdings).filter(c=>Number(holdings[c]?.shares)>0);
+      sel.innerHTML='<option value="全部">全部股票</option>'+codes.map(c=>`<option value="${c}">${c} ${stockSnapshot.find(x=>x.code===c)?.name||KNOWN_STOCKS[c]?.name||''}</option>`).join('');
+      sel.value=codes.includes(old)||old==='全部'?old:'全部';
+      const yearSel=document.getElementById('dividend-year-filter'); if(yearSel){const y=new Date().getFullYear(); const years=[...new Set([y-2,y-1,y,y+1,y+2,...dividendRecords.map(r=>Number(String(r.date).slice(0,4))).filter(Boolean)])].sort((a,b)=>a-b); const oldYear=yearSel.value||String(y); yearSel.innerHTML=years.map(v=>`<option value="${v}">${v}${v>y?'（預估）':''}</option>`).join(''); yearSel.value=years.includes(Number(oldYear))?oldYear:String(y);}
+    }
+    function renderDividendPage() {
+      const container=document.getElementById('dividend-list'); if(!container)return;
+      const {holdings}=calculatePortfolioState();
+      const codeFilter=document.getElementById('dividend-stock-filter')?.value||'全部';
+      const year=Number(document.getElementById('dividend-year-filter')?.value||new Date().getFullYear());
+      const type=document.getElementById('dividend-type-filter')?.value||'全部';
+      const currentYear=new Date().getFullYear(); const rows=[]; let pastTotal=0,forecastTotal=0;
+      dividendRecords.forEach((r,i)=>{const ry=Number(String(r.date).slice(0,4)); const snap=stockSnapshot.find(x=>x.code===r.code); const buyDate=r.buyDate||snap?.buyDate||''; if(r.autoImported && (!buyDate || buyDate>r.date)) return; if((codeFilter==='全部'||r.code===codeFilter)&&ry===year&&(type==='全部'||type==='已領')){const eligibleShares = r.autoImported ? (Number(calculatePortfolioState().holdings[r.code]?.shares)||0) : (Number(r.shares)||0);const gross=Number(r.amount)>0?Number(r.amount):eligibleShares*(Number(r.dps)||0);const fee=Math.max(0,Number(r.fee)||0);const amt=Math.max(0,gross-fee);pastTotal+=amt;rows.push(`<div class="flex flex-wrap justify-between gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700"><div><b>${r.name||KNOWN_STOCKS[r.code]?.name||r.code} (${r.code})</b><p class="text-xs text-slate-400">${r.date} · ${r.autoImported?'官方除息資料／依資格估算':'人工登記'}${buyDate?' · 買入 '+buyDate:''} · 股利總額 $${Math.round(gross).toLocaleString()} − 匯費 $${Math.round(fee).toLocaleString()} · ${r.amount>0?'手動訂正總額':'依股數估算'}</p></div><div class="text-emerald-400 font-bold">淨領估算 $${Math.round(amt).toLocaleString()} <button onclick="deleteDividendRecord(${i})" class="ml-2 text-xs text-red-300 underline">刪除</button></div></div>`);}});
+      if(year>=currentYear && type!=='已領') Object.keys(holdings).forEach(code=>{if(codeFilter!=='全部'&&code!==codeFilter)return; const h=holdings[code]; const shares=Number(h.shares)||0; const dps=Number(dividendSettings[code] ?? KNOWN_STOCKS[code]?.dps ?? 0); if(shares<=0||dps<=0)return; const amt=shares*dps; forecastTotal+=amt; rows.push(`<div class="flex flex-wrap justify-between gap-3 p-3 bg-blue-950/30 rounded-lg border border-blue-900/60"><div><b>${h.snapshotName||KNOWN_STOCKS[code]?.name||code} (${code})</b><p class="text-xs text-slate-400">${year} 年度預估 · ${shares.toLocaleString()} 股 × 年配息 $${dps}</p></div><div class="text-blue-300 font-bold">約 $${Math.round(amt).toLocaleString()}<p class="text-xs font-normal text-slate-500">非保證配息</p></div></div>`);});
+      const summary=document.getElementById('dividend-summary'); if(summary)summary.innerHTML=[['已登記／估算已領',pastTotal],['未來年度預估',forecastTotal],['合計',pastTotal+forecastTotal]].map(([label,val])=>`<div class="bg-slate-800/70 rounded-lg p-3"><p class="text-xs text-slate-400">${label}</p><p class="text-xl font-bold text-emerald-300 mt-1">$${Math.round(val).toLocaleString()}</p></div>`).join('');
+      container.innerHTML=rows.length?rows.join(''):'<p class="text-slate-500 text-center py-4">此篩選條件沒有股利資料。過往股利請按「登記已領股利」新增；未設定配息的股票不會自動假設有股利。</p>';
+    }
+    function openDividendEntry(){document.getElementById('dividend-entry').classList.remove('hidden');document.getElementById('dividend-settings').classList.add('hidden');document.getElementById('div-entry-date').value=new Date().toISOString().slice(0,10);}
+    function saveDividendEntry(){const code=document.getElementById('div-entry-code').value.trim().toUpperCase();const date=document.getElementById('div-entry-date').value;const dps=Number(document.getElementById('div-entry-dps').value)||0;const amount=Number(document.getElementById('div-entry-amount').value)||0;const fee=Math.max(0,Number(document.getElementById('div-entry-fee').value)||0);const holding=calculatePortfolioState().holdings[code];const shares=Number(holding?.shares)||0;const snap=stockSnapshot.find(x=>x.code===code);const buyDate=snap?.buyDate||'';if(!code||!date||(!dps&&!amount)){alert('請輸入股票代號、除息日期，以及每股股利或股利總額。');return;}if(!holding){alert('找不到這檔股票的庫存，請確認代號或先匯入庫存。');return;}if(buyDate&&buyDate>date){if(!confirm('此股買入日期晚於除息日，通常不符合本次配息資格。仍要人工訂正並儲存嗎？'))return;}if(!buyDate&&!confirm('這檔股票尚未填寫買入日期，無法核對除息資格。仍要用目前股數登記嗎？'))return;dividendRecords.push({code,date,dps,amount,fee,shares,buyDate,name:snap?.name||KNOWN_STOCKS[code]?.name||code});localStorage.setItem('user_dividend_records',JSON.stringify(dividendRecords));document.getElementById('dividend-entry').classList.add('hidden');renderAllPages();}
+
+    // 透過證交所公開 TWT49U 報表嘗試匯入 2025 年除權息資料。
+    // 由使用者主動啟動，避免頁面載入時大量背景請求。
+    async function importTwseDividends2025() {
+      const status = document.getElementById('dividend-data-status');
+      const btn = document.querySelector('button[onclick="importTwseDividends2025()"]');
+      const { holdings } = calculatePortfolioState();
+      const codes = new Set(Object.keys(holdings));
+      if (!codes.size) { alert('請先匯入目前庫存 Excel。'); return; }
+      if (status) status.textContent = '正在向證交所查詢 2025 年除權息資料，請稍候……';
+      if (btn) btn.disabled = true;
+      try {
+        const found = new Map();
+        const dates = [];
+        for (let d = new Date('2025-01-01T12:00:00'); d <= new Date('2025-12-31T12:00:00'); d.setDate(d.getDate()+1)) {
+          const day = d.getDay(); if (day !== 0 && day !== 6) dates.push(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`);
+        }
+        let done = 0;
+        // 限制同時連線數，避免一次對官方網站送出過多請求。
+        let cursor = 0;
+        const workers = Array.from({length: 3}, async () => {
+          while (cursor < dates.length) {
+            const date = dates[cursor++];
+            try {
+              const url = `https://www.twse.com.tw/rwd/zh/exRight/TWT49U?date=${date}&response=json`;
+              const res = await fetch(url, {headers:{'Accept':'application/json'}});
+              if (res.ok) {
+                const json = await res.json();
+                const fields = json.fields || [];
+                const codeIdx = fields.findIndex(x => /股票代號|證券代號/.test(x));
+                const nameIdx = fields.findIndex(x => /股票名稱|證券名稱/.test(x));
+                const valueIdx = fields.findIndex(x => /權值\+息值|息值|現金股利/.test(x));
+                const typeIdx = fields.findIndex(x => /權\/息|權息別/.test(x));
+                (json.data || []).forEach(row => {
+                  const code = String(row[codeIdx] || '').trim();
+                  if (!codes.has(code) || codeIdx < 0 || valueIdx < 0) return;
+                  const type = typeIdx >= 0 ? String(row[typeIdx] || '') : '';
+                  // TWT49U 的「權值+息值」在純除息事件可作每股現金股利近似；混合權息事件不自動匯入，避免把權值誤算股利。
+                  if (type.includes('權') && type.includes('息')) return;
+                  if (!type.includes('息')) return;
+                  const raw = String(row[valueIdx] || '').replace(/,/g,'');
+                  const dps = Number(raw);
+                  if (!(dps > 0)) return;
+                  const iso = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+                  const key = `${code}_${iso}`;
+                  found.set(key, {code, date:iso, dps, name:nameIdx>=0?String(row[nameIdx]||code):code, source:'TWSE TWT49U'});
+                });
+              }
+            } catch (e) { /* 可能遭跨網域政策阻擋，繼續嘗試其他日期 */ }
+            done++;
+            if (status && done % 15 === 0) status.textContent = `正在查詢 2025 年除權息資料：${done}/${dates.length} 個交易日……`;
+          }
+        });
+        await Promise.all(workers);
+        let added = 0, updated = 0;
+        found.forEach(item => {
+          const existing = dividendRecords.find(r => r.code === item.code && r.date === item.date && r.source === 'TWSE TWT49U');
+          if (existing) { existing.dps = item.dps; existing.name = item.name; updated++; }
+          else { dividendRecords.push({...item, amount:0, fee:0, shares:0, autoImported:true}); added++; }
+        });
+        localStorage.setItem('user_dividend_records', JSON.stringify(dividendRecords));
+        if (status) status.textContent = found.size
+          ? `2025 年匯入完成：新增 ${added} 筆、更新 ${updated} 筆。這些是除息事件資料，持股數仍以目前庫存估算；請核對每筆股利。`
+          : '未取得資料。證交所可能限制跨網域存取或調整 API。請改由證交所 TWT49U 官方報表查詢並下載 CSV；本次未更動原有股利紀錄。';
+        renderAllPages();
+      } catch (err) {
+        if (status) status.textContent = '匯入失敗：' + (err.message || '無法連線至證交所。請檢查網路或改用官方 CSV。');
+      } finally { if (btn) btn.disabled = false; }
+    }
+
+    function deleteDividendRecord(i){if(!confirm('確定刪除這筆股利紀錄？'))return;dividendRecords.splice(i,1);localStorage.setItem('user_dividend_records',JSON.stringify(dividendRecords));renderDividendPage();}
+    function openDividendSettings(){document.getElementById('dividend-settings').classList.remove('hidden');document.getElementById('dividend-entry').classList.add('hidden');}
+    function saveDividendSetting(){const code=document.getElementById('div-setting-code').value.trim().toUpperCase();const dps=Number(document.getElementById('div-setting-dps').value);if(!code||!Number.isFinite(dps)||dps<0){alert('請輸入有效股票代號與每股年配息。');return;}dividendSettings[code]=dps;localStorage.setItem('user_dividend_settings',JSON.stringify(dividendSettings));document.getElementById('dividend-settings').classList.add('hidden');renderAllPages();}
+
+    // 將 OCR 數字正規化：支援 1,234、1,234.5 等格式，避免千分位被拆成兩個數字
+    function extractOcrNumbers(line) {
+      const matches = line.match(/-?\d[\d,]*(?:\.\d+)?/g) || [];
+      return matches.map(value => Number(value.replace(/,/g, ''))).filter(value => Number.isFinite(value));
+    }
+
+    // OCR 辨識邏輯：依每一列的股票代號定位，避免直接固定取全列第 2、3 個數字
+    // 匯入目前庫存 Excel：取代快照，不會建立 BUY 交易
+    function importStockSnapshotExcel(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (typeof XLSX === 'undefined') {
+        alert('Excel 讀取元件尚未載入，請確認網路連線後重新整理頁面。');
+        event.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const workbook = XLSX.read(e.target.result, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+          if (!rows.length) throw new Error('Excel 工作表沒有資料。');
+
+          const normalizeHeader = value => String(value || '').replace(/[\s（）()]/g, '').toLowerCase();
+          const headers = rows[0].map(normalizeHeader);
+          const findCol = (patterns, fallback) => {
+            const idx = headers.findIndex(h => patterns.some(p => h.includes(p)));
+            return idx >= 0 ? idx : fallback;
+          };
+          const col = {
+            code: findCol(['代號', '股票代號', '證券代號'], 0),
+            name: findCol(['名稱', '股票名稱', '證券名稱'], 1),
+            price: findCol(['市價', '現價', '成交價'], 2),
+            shares: findCol(['即時庫存', '庫存股數', '股數', '庫存數量'], 3),
+            avgCost: findCol(['平均成本', '成本均價', '均價成本'], 4),
+            marketValue: findCol(['市值', '市場價值'], 6)
+          };
+          const toNumber = value => {
+            if (typeof value === 'number') return value;
+            const str = String(value ?? '').trim().replace(/[,，$NT＄\s]/g, '');
+            if (!str || str === '-' || str === '—') return 0;
+            const n = Number(str);
+            return Number.isFinite(n) ? n : 0;
+          };
+
+          const imported = [];
+          const errors = [];
+          rows.slice(1).forEach((row, index) => {
+            const code = String(row[col.code] ?? '').trim().toUpperCase();
+            if (!code || !/^\d{4,6}[A-Z]{0,2}$/.test(code)) return;
+            const shares = toNumber(row[col.shares]);
+            const avgCost = toNumber(row[col.avgCost]);
+            const price = toNumber(row[col.price]);
+            const marketValue = toNumber(row[col.marketValue]);
+            const name = String(row[col.name] || code).trim();
+            if (shares <= 0 || avgCost < 0) {
+              errors.push(`第 ${index + 2} 列 ${code}：股數或平均成本無效`);
+              return;
+            }
+            imported.push({ code, name, shares: Math.round(shares), avgCost, price, marketValue });
+          });
+
+          if (!imported.length) throw new Error('沒有找到有效庫存。請確認第一列包含代號、股數及平均成本欄位。');
+          const duplicateCodes = imported.map(x => x.code).filter((code, i, arr) => arr.indexOf(code) !== i);
+          if (duplicateCodes.length) throw new Error('Excel 有重複股票代號：' + [...new Set(duplicateCodes)].join('、'));
+
+          if (!confirm(`即將匯入 ${imported.length} 檔目前庫存，並取代先前的庫存快照。\\n\\n不會新增買進交易，也不會改動頁面五交易紀錄。\\n\\n是否繼續？`)) return;
+          imported.forEach(item => { const previous = stockSnapshot.find(x => x.code === item.code); if (previous?.buyDate) item.buyDate = previous.buyDate; });
+          stockSnapshot = imported;
+          localStorage.setItem('user_stock_snapshot', JSON.stringify(stockSnapshot));
+          renderAllPages();
+          alert(`已匯入 ${imported.length} 檔目前庫存。沒有新增任何 BUY 交易。` +
+            (errors.length ? `\\n另有 ${errors.length} 列股數或平均成本無效，已略過。` : ''));
+        } catch (err) {
+          alert('Excel 匯入失敗：' + err.message);
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.onerror = function() {
+        alert('無法讀取此檔案，請確認檔案沒有損毀。');
+        event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
     async function processGroupBenefitScreenshot(event) {
-      const file = event.target.files[0];
+      const file = event.target.files?.[0];
       if (!file) return;
 
       document.getElementById('ocr-loading').classList.remove('hidden');
       try {
         const worker = await Tesseract.createWorker('chi_tra+eng');
-        const ret = await worker.recognize(file);
-        await worker.terminate();
+        let ret;
+        try {
+          ret = await worker.recognize(file);
+        } finally {
+          await worker.terminate();
+        }
 
-        const text = ret.data.text;
+        const text = ret.data.text || '';
         console.log("OCR 原始內容：\n", text);
-
         pendingOcrItems = [];
-        const lines = text.split('\n');
 
-        lines.forEach(line => {
-          const codeMatch = line.match(/\b(\d{4,5})\b/);
-          const numbers = line.match(/\d+\.?\d*/g);
+        for (const rawLine of text.split(/\r?\n/)) {
+          const line = rawLine.trim();
+          // 支援台股 4 位數代號、ETF 5 位數代號，以及含英文字母的債券 ETF 代號
+          const codeMatch = line.match(/(?:^|[^\dA-Z])(\d{4,5}[A-Z]?|[A-Z]{2,4}\d{2,5}[A-Z]?)(?=$|[^\dA-Z])/i);
+          if (!codeMatch) continue;
 
-          if (codeMatch && numbers && numbers.length >= 3) {
-            const code = codeMatch[1];
-            // 取第二個與第三個數字作為股數與單價的預設值
-            let shares = parseInt(numbers[1]);
-            let price = parseFloat(numbers[2]);
+          const code = codeMatch[1].toUpperCase();
+          const codeIndex = line.indexOf(codeMatch[1]);
+          const afterCode = line.slice(codeIndex + codeMatch[1].length);
+          const values = extractOcrNumbers(afterCode).filter(n => n > 0);
 
-            if (shares > 0 && price > 0) {
-              pendingOcrItems.push({ code, shares, price });
-            }
+          // 目前預覽欄位定義為「股數、買進單價」；依代號後的數字順序取值。
+          // 若券商截圖欄位順序不同，請以預覽視窗人工核對，不會直接寫入。
+          if (values.length >= 2) {
+            const shares = Math.round(values[0]);
+            const price = values[1];
+            if (shares > 0 && price > 0) pendingOcrItems.push({ code, shares, price });
           }
+        }
+
+        // 去除同一張圖中重複辨識到的相同列
+        const seen = new Set();
+        pendingOcrItems = pendingOcrItems.filter(item => {
+          const key = `${item.code}|${item.shares}|${item.price}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
         });
 
         if (pendingOcrItems.length > 0) {
           renderOcrPreviewTable();
           document.getElementById('ocr-preview-modal').classList.remove('hidden');
         } else {
-          alert('未能從截圖辨識出標準持股格式，請使用【手動新增交易】新增。');
+          alert('未能可靠辨識出「股票代號、股數、單價」。請確認截圖清晰，或使用手動新增交易。');
         }
       } catch (err) {
+        console.error(err);
         alert('OCR 辨識發生錯誤：' + err.message);
       } finally {
         document.getElementById('ocr-loading').classList.add('hidden');
+        event.target.value = '';
       }
     }
 
@@ -598,23 +868,42 @@
     }
 
     function confirmOcrImport() {
-      pendingOcrItems.forEach(item => {
-        if (item.code && item.shares > 0 && item.price > 0) {
-          userTransactions.push({
-            date: new Date().toISOString().split('T')[0],
-            type: 'BUY',
-            code: item.code,
-            shares: item.shares,
-            price: item.price,
-            fee: 20
-          });
+      const today = new Date().toISOString().split('T')[0];
+      const validItems = pendingOcrItems.filter(item =>
+        /^[0-9A-Z]{4,6}$/i.test(String(item.code).trim()) &&
+        Number.isInteger(Number(item.shares)) && Number(item.shares) > 0 &&
+        Number.isFinite(Number(item.price)) && Number(item.price) > 0
+      );
+
+      if (!validItems.length) {
+        alert('沒有可匯入的有效資料，請檢查股票代號、股數與單價。');
+        return;
+      }
+
+      // 防止同一天重複匯入完全相同的列；若是不同日期的交易，仍可正常新增
+      let added = 0;
+      let skipped = 0;
+      validItems.forEach(item => {
+        const code = String(item.code).trim().toUpperCase();
+        const shares = Number(item.shares);
+        const price = Number(item.price);
+        const duplicate = userTransactions.some(tx =>
+          tx.date === today && tx.type === 'BUY' && String(tx.code).toUpperCase() === code &&
+          Number(tx.shares) === shares && Number(tx.price) === price
+        );
+        if (duplicate) {
+          skipped++;
+          return;
         }
+        userTransactions.push({ date: today, type: 'BUY', code, shares, price, fee: 0 });
+        added++;
       });
 
       localStorage.setItem('user_tx', JSON.stringify(userTransactions));
+      pendingOcrItems = [];
       closeOcrModal();
       renderAllPages();
-      alert("✅ 成功匯入庫存資料並完成連動計算！");
+      alert(`匯入完成：新增 ${added} 筆${skipped ? `，略過 ${skipped} 筆疑似重複資料` : ''}。請注意：若圖片是「目前庫存快照」而非買進成交紀錄，請先確認單價欄位是否為平均成本；快照不應直接當成歷史買進交易。`);
     }
 
     async function loadAutoData() {
